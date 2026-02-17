@@ -194,10 +194,21 @@ resource "aws_ecs_task_definition" "strapi_task" {
           containerPort = 1337
           hostPort      = 1337
         }
+      ],
+
+      environment = [
+        { name = "NODE_ENV", value = "production" },
+        { name = "HOST", value = "0.0.0.0" },
+        { name = "PORT", value = "1337" },
+        { name = "APP_KEYS", value = "testkey1,testkey2,testkey3,testkey4" },
+        { name = "API_TOKEN_SALT", value = "randomsalt123" },
+        { name = "ADMIN_JWT_SECRET", value = "adminsecret123" },
+        { name = "JWT_SECRET", value = "jwtsecret123" }
       ]
     }
   ])
 }
+
 
 # ---------------------------------------------------
 # ECS Service
