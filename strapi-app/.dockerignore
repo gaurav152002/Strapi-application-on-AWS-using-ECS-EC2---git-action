@@ -1,0 +1,17 @@
+# Ignore node modules (Docker installs its own)
+node_modules
+
+# Ignore git repository
+.git
+
+# Ignore environment files (security)
+.env
+
+# Ignore build output
+build
+
+# Ignore cache files
+.cache
+
+# Ignore logs
+logs

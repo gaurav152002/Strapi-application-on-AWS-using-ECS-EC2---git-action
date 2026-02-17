@@ -1,0 +1,53 @@
+name: CI-CD ECS ECR Deployment
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+
+      # Checkout repo
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      # Configure AWS credentials
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      # Login to ECR
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      # Build & Push Image
+      - name: Build and Push Docker Image
+        run: |
+          IMAGE_TAG=${{ github.sha }}
+          ECR_REGISTRY=${{ steps.login-ecr.outputs.registry }}
+          REPO_NAME=strapi-task7
+          
+          docker build -t $ECR_REGISTRY/$REPO_NAME:$IMAGE_TAG ./strapi-app
+          docker push $ECR_REGISTRY/$REPO_NAME:$IMAGE_TAG
+
+      # Setup Terraform
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+
+      # Terraform Init
+      - name: Terraform Init
+        run: terraform init
+        working-directory: ./terraform
+
+      # Terraform Apply
+      - name: Terraform Apply
+        run: terraform apply -auto-approve -var="image_tag=${{ github.sha }}"
+        working-directory: ./terraform
