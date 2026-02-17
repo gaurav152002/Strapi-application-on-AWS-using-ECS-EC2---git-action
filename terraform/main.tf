@@ -1,20 +1,40 @@
-# -------------------------------------------
-# AWS Provider Configuration
-# -------------------------------------------
+# ---------------------------------------------------
+# Terraform Backend (Remote State in S3)
+# ---------------------------------------------------
+terraform {
+  backend "s3" {
+    bucket         = "strapi-task7-terraform-state"
+    key            = "task7/terraform.tfstate"
+    region         = "us-east-1"
+    dynamodb_table = "terraform-locks"
+    encrypt        = true
+  }
+
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 5.0"
+    }
+  }
+}
+
+# ---------------------------------------------------
+# AWS Provider
+# ---------------------------------------------------
 provider "aws" {
   region = "us-east-1"
 }
 
-# -------------------------------------------
+# ---------------------------------------------------
 # Get Default VPC
-# -------------------------------------------
+# ---------------------------------------------------
 data "aws_vpc" "default" {
   default = true
 }
 
-# -------------------------------------------
-# Get Subnets from Default VPC
-# -------------------------------------------
+# ---------------------------------------------------
+# Get Subnets
+# ---------------------------------------------------
 data "aws_subnets" "default_subnets" {
   filter {
     name   = "vpc-id"
@@ -22,53 +42,51 @@ data "aws_subnets" "default_subnets" {
   }
 }
 
-# -------------------------------------------
+# ---------------------------------------------------
 # Use Existing ECR Repository
-# -------------------------------------------
+# ---------------------------------------------------
 data "aws_ecr_repository" "strapi_repo" {
   name = "strapi-task7"
 }
 
-# -------------------------------------------
+# ---------------------------------------------------
 # ECS Cluster
-# -------------------------------------------
+# ---------------------------------------------------
 resource "aws_ecs_cluster" "strapi_cluster" {
   name = "strapi-task7"
 }
 
-# -------------------------------------------
+# ---------------------------------------------------
 # IAM Role for ECS EC2 Instance
-# -------------------------------------------
+# ---------------------------------------------------
 resource "aws_iam_role" "ecs_instance_role" {
   name = "ecsInstanceRoleTask7"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
-      Action = "sts:AssumeRole"
       Effect = "Allow"
       Principal = {
         Service = "ec2.amazonaws.com"
       }
+      Action = "sts:AssumeRole"
     }]
   })
 }
 
-# Attach ECS EC2 Role policy
 resource "aws_iam_role_policy_attachment" "ecs_instance_attach" {
   role       = aws_iam_role.ecs_instance_role.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceforEC2Role"
 }
 
-# Instance Profile
 resource "aws_iam_instance_profile" "ecs_instance_profile" {
   name = "ecsInstanceProfileTask7"
   role = aws_iam_role.ecs_instance_role.name
 }
 
-# -------------------------------------------
-# ECS Task Execution Role (ECR Pull Permission)
-# -------------------------------------------
+# ---------------------------------------------------
+# ECS Task Execution Role (Pull from ECR)
+# ---------------------------------------------------
 resource "aws_iam_role" "ecs_task_execution_role" {
   name = "ecsTaskExecutionRoleTask7"
 
@@ -89,14 +107,13 @@ resource "aws_iam_role_policy_attachment" "ecs_task_execution_attach" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
 }
 
-# -------------------------------------------
+# ---------------------------------------------------
 # Security Group
-# -------------------------------------------
+# ---------------------------------------------------
 resource "aws_security_group" "ecs_sg" {
   name   = "strapi-task7-sg"
   vpc_id = data.aws_vpc.default.id
 
-  # Allow SSH
   ingress {
     from_port   = 22
     to_port     = 22
@@ -104,7 +121,6 @@ resource "aws_security_group" "ecs_sg" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  # Allow Strapi
   ingress {
     from_port   = 1337
     to_port     = 1337
@@ -112,7 +128,6 @@ resource "aws_security_group" "ecs_sg" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  # Allow all outbound
   egress {
     from_port   = 0
     to_port     = 0
@@ -121,9 +136,9 @@ resource "aws_security_group" "ecs_sg" {
   }
 }
 
-# -------------------------------------------
+# ---------------------------------------------------
 # Get ECS Optimized AMI
-# -------------------------------------------
+# ---------------------------------------------------
 data "aws_ami" "ecs_ami" {
   most_recent = true
   owners      = ["amazon"]
@@ -134,9 +149,9 @@ data "aws_ami" "ecs_ami" {
   }
 }
 
-# -------------------------------------------
+# ---------------------------------------------------
 # EC2 Instance for ECS
-# -------------------------------------------
+# ---------------------------------------------------
 resource "aws_instance" "ecs_instance" {
   ami                         = data.aws_ami.ecs_ami.id
   instance_type               = "t2.micro"
@@ -156,9 +171,9 @@ resource "aws_instance" "ecs_instance" {
   }
 }
 
-# -------------------------------------------
+# ---------------------------------------------------
 # ECS Task Definition
-# -------------------------------------------
+# ---------------------------------------------------
 resource "aws_ecs_task_definition" "strapi_task" {
   family                   = "strapi-task7"
   network_mode             = "bridge"
@@ -184,9 +199,9 @@ resource "aws_ecs_task_definition" "strapi_task" {
   ])
 }
 
-# -------------------------------------------
+# ---------------------------------------------------
 # ECS Service
-# -------------------------------------------
+# ---------------------------------------------------
 resource "aws_ecs_service" "strapi_service" {
   name            = "strapi-task7"
   cluster         = aws_ecs_cluster.strapi_cluster.id
@@ -197,9 +212,9 @@ resource "aws_ecs_service" "strapi_service" {
   depends_on = [aws_instance.ecs_instance]
 }
 
-# -------------------------------------------
+# ---------------------------------------------------
 # Output Public URL
-# -------------------------------------------
+# ---------------------------------------------------
 output "strapi_url" {
   value = "http://${aws_instance.ecs_instance.public_ip}:1337/"
 }

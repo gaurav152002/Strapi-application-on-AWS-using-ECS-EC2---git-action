@@ -1,7 +1,4 @@
-# -------------------------------------------
-# Docker Image Tag (Passed from GitHub Actions)
-# -------------------------------------------
 variable "image_tag" {
-  description = "Docker image tag to deploy"
+  description = "Docker image tag pushed from GitHub Actions"
   type        = string
 }
