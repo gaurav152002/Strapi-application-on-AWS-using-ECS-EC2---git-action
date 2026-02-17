@@ -27,4 +27,6 @@ RUN mkdir -p public/uploads
 EXPOSE 1337
 
 # Start Strapi
-CMD ["npm", "run", "develop"]
+RUN npm run build
+CMD ["npm", "run", "start"]
+
