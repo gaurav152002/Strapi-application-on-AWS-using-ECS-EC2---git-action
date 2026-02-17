@@ -1,4 +1,4 @@
 variable "image_tag" {
-  description = "Docker image tag pushed from GitHub Actions"
+  description = "Docker image tag pushed to ECR"
   type        = string
 }

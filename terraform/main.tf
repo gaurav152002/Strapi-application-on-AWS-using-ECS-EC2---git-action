@@ -1,6 +1,6 @@
-# ---------------------------------------------------
-# Terraform Backend (Remote State in S3)
-# ---------------------------------------------------
+# ===================================================
+# TERRAFORM BACKEND (Remote State in S3)
+# ===================================================
 terraform {
   backend "s3" {
     bucket         = "strapi-task7-terraform-state"
@@ -18,23 +18,20 @@ terraform {
   }
 }
 
-# ---------------------------------------------------
-# AWS Provider
-# ---------------------------------------------------
+# ===================================================
+# AWS PROVIDER
+# ===================================================
 provider "aws" {
   region = "us-east-1"
 }
 
-# ---------------------------------------------------
-# Get Default VPC
-# ---------------------------------------------------
+# ===================================================
+# DEFAULT VPC + SUBNETS
+# ===================================================
 data "aws_vpc" "default" {
   default = true
 }
 
-# ---------------------------------------------------
-# Get Subnets
-# ---------------------------------------------------
 data "aws_subnets" "default_subnets" {
   filter {
     name   = "vpc-id"
@@ -42,23 +39,31 @@ data "aws_subnets" "default_subnets" {
   }
 }
 
-# ---------------------------------------------------
-# Use Existing ECR Repository
-# ---------------------------------------------------
+# ===================================================
+# EXISTING ECR REPOSITORY
+# ===================================================
 data "aws_ecr_repository" "strapi_repo" {
   name = "strapi-task7"
 }
 
-# ---------------------------------------------------
-# ECS Cluster
-# ---------------------------------------------------
+# ===================================================
+# CLOUDWATCH LOG GROUP
+# ===================================================
+resource "aws_cloudwatch_log_group" "strapi_logs" {
+  name              = "/ecs/strapi-task7"
+  retention_in_days = 7
+}
+
+# ===================================================
+# ECS CLUSTER
+# ===================================================
 resource "aws_ecs_cluster" "strapi_cluster" {
   name = "strapi-task7"
 }
 
-# ---------------------------------------------------
-# IAM Role for ECS EC2 Instance
-# ---------------------------------------------------
+# ===================================================
+# IAM ROLE FOR ECS EC2 INSTANCE
+# ===================================================
 resource "aws_iam_role" "ecs_instance_role" {
   name = "ecsInstanceRoleTask7"
 
@@ -84,9 +89,9 @@ resource "aws_iam_instance_profile" "ecs_instance_profile" {
   role = aws_iam_role.ecs_instance_role.name
 }
 
-# ---------------------------------------------------
-# ECS Task Execution Role (Pull from ECR)
-# ---------------------------------------------------
+# ===================================================
+# ECS TASK EXECUTION ROLE (PULL FROM ECR + LOGS)
+# ===================================================
 resource "aws_iam_role" "ecs_task_execution_role" {
   name = "ecsTaskExecutionRoleTask7"
 
@@ -107,9 +112,9 @@ resource "aws_iam_role_policy_attachment" "ecs_task_execution_attach" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
 }
 
-# ---------------------------------------------------
-# Security Group
-# ---------------------------------------------------
+# ===================================================
+# SECURITY GROUP
+# ===================================================
 resource "aws_security_group" "ecs_sg" {
   name   = "strapi-task7-sg"
   vpc_id = data.aws_vpc.default.id
@@ -136,9 +141,9 @@ resource "aws_security_group" "ecs_sg" {
   }
 }
 
-# ---------------------------------------------------
-# Get ECS Optimized AMI
-# ---------------------------------------------------
+# ===================================================
+# ECS OPTIMIZED AMI
+# ===================================================
 data "aws_ami" "ecs_ami" {
   most_recent = true
   owners      = ["amazon"]
@@ -149,9 +154,9 @@ data "aws_ami" "ecs_ami" {
   }
 }
 
-# ---------------------------------------------------
-# EC2 Instance for ECS
-# ---------------------------------------------------
+# ===================================================
+# EC2 INSTANCE FOR ECS
+# ===================================================
 resource "aws_instance" "ecs_instance" {
   ami                         = data.aws_ami.ecs_ami.id
   instance_type               = "t2.micro"
@@ -171,9 +176,9 @@ resource "aws_instance" "ecs_instance" {
   }
 }
 
-# ---------------------------------------------------
-# ECS Task Definition
-# ---------------------------------------------------
+# ===================================================
+# ECS TASK DEFINITION
+# ===================================================
 resource "aws_ecs_task_definition" "strapi_task" {
   family                   = "strapi-task7"
   network_mode             = "bridge"
@@ -194,25 +199,35 @@ resource "aws_ecs_task_definition" "strapi_task" {
           containerPort = 1337
           hostPort      = 1337
         }
-      ],
+      ]
 
       environment = [
         { name = "NODE_ENV", value = "production" },
         { name = "HOST", value = "0.0.0.0" },
         { name = "PORT", value = "1337" },
-        { name = "APP_KEYS", value = "testkey1,testkey2,testkey3,testkey4" },
-        { name = "API_TOKEN_SALT", value = "randomsalt123" },
+        { name = "APP_KEYS", value = "key1,key2,key3,key4" },
+        { name = "API_TOKEN_SALT", value = "salt123" },
         { name = "ADMIN_JWT_SECRET", value = "adminsecret123" },
-        { name = "JWT_SECRET", value = "jwtsecret123" }
+        { name = "JWT_SECRET", value = "jwtsecret123" },
+        { name = "TRANSFER_TOKEN_SALT", value = "transfersalt123" },
+        { name = "ENCRYPTION_KEY", value = "encryptionkey123" }
       ]
+
+      logConfiguration = {
+        logDriver = "awslogs"
+        options = {
+          awslogs-group         = "/ecs/strapi-task7"
+          awslogs-region        = "us-east-1"
+          awslogs-stream-prefix = "ecs"
+        }
+      }
     }
   ])
 }
 
-
-# ---------------------------------------------------
-# ECS Service
-# ---------------------------------------------------
+# ===================================================
+# ECS SERVICE
+# ===================================================
 resource "aws_ecs_service" "strapi_service" {
   name            = "strapi-task7"
   cluster         = aws_ecs_cluster.strapi_cluster.id
@@ -223,9 +238,9 @@ resource "aws_ecs_service" "strapi_service" {
   depends_on = [aws_instance.ecs_instance]
 }
 
-# ---------------------------------------------------
-# Output Public URL
-# ---------------------------------------------------
+# ===================================================
+# OUTPUT
+# ===================================================
 output "strapi_url" {
   value = "http://${aws_instance.ecs_instance.public_ip}:1337/"
 }

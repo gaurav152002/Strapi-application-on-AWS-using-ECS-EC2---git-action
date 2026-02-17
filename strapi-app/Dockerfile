@@ -1,32 +1,53 @@
-# Use Node 20 slim (Strapi v5 compatible)
+# ===================================================
+# Use Node 20 (Strapi v5 compatible)
+# ===================================================
 FROM node:20-slim
 
-# Install required dependencies for sqlite
+# ===================================================
+# Install system dependencies (needed for sqlite)
+# ===================================================
 RUN apt-get update && apt-get install -y \
     python3 \
     build-essential \
     sqlite3 \
     && rm -rf /var/lib/apt/lists/*
 
+# ===================================================
 # Set working directory
+# ===================================================
 WORKDIR /app
 
-# Copy package files first (better caching)
+# ===================================================
+# Copy package files first (Docker caching optimization)
+# ===================================================
 COPY package*.json ./
 
-# Install dependencies
-RUN npm install
+# ===================================================
+# Install dependencies (production safe)
+# ===================================================
+RUN npm install --production
 
-# Copy rest of project
+# ===================================================
+# Copy full project
+# ===================================================
 COPY . .
 
-# Create uploads directory (IMPORTANT FIX)
+# ===================================================
+# Ensure uploads directory exists
+# ===================================================
 RUN mkdir -p public/uploads
 
-# Expose Strapi port
+# ===================================================
+# Build admin panel (REQUIRED for production)
+# ===================================================
+RUN npm run build
+
+# ===================================================
+# Expose port
+# ===================================================
 EXPOSE 1337
 
-# Start Strapi
-RUN npm run build
+# ===================================================
+# Start Strapi in production
+# ===================================================
 CMD ["npm", "run", "start"]
-
