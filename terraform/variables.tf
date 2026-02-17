@@ -1,9 +1,7 @@
 # -------------------------------------------
-# Docker Image Tag Variable
-# This will be passed from GitHub Actions
-# Example: aabd94f207acf8d27edda81b6e07c81b4ded29e5
+# Docker Image Tag (Passed from GitHub Actions)
 # -------------------------------------------
 variable "image_tag" {
-  description = "Docker image tag"
+  description = "Docker image tag to deploy"
   type        = string
 }

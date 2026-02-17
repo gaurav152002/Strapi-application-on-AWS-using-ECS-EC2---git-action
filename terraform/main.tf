@@ -23,19 +23,10 @@ data "aws_subnets" "default_subnets" {
 }
 
 # -------------------------------------------
-# Create ECR Repository
-# This will store Docker images
+# Use Existing ECR Repository
 # -------------------------------------------
-resource "aws_ecr_repository" "strapi_repo" {
+data "aws_ecr_repository" "strapi_repo" {
   name = "strapi-task7"
-
-  image_scanning_configuration {
-    scan_on_push = true
-  }
-
-  tags = {
-    Name = "strapi-task7"
-  }
 }
 
 # -------------------------------------------
@@ -53,52 +44,47 @@ resource "aws_iam_role" "ecs_instance_role" {
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [
-      {
-        Action = "sts:AssumeRole"
-        Effect = "Allow"
-        Principal = {
-          Service = "ec2.amazonaws.com"
-        }
+    Statement = [{
+      Action = "sts:AssumeRole"
+      Effect = "Allow"
+      Principal = {
+        Service = "ec2.amazonaws.com"
       }
-    ]
+    }]
   })
 }
 
-# Attach ECS required policy
-resource "aws_iam_role_policy_attachment" "ecs_attach" {
+# Attach ECS EC2 Role policy
+resource "aws_iam_role_policy_attachment" "ecs_instance_attach" {
   role       = aws_iam_role.ecs_instance_role.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceforEC2Role"
 }
 
-# Instance profile to attach role to EC2
+# Instance Profile
 resource "aws_iam_instance_profile" "ecs_instance_profile" {
   name = "ecsInstanceProfileTask7"
   role = aws_iam_role.ecs_instance_role.name
 }
 
 # -------------------------------------------
-# ECS Task Execution Role
-# Allows ECS to pull from ECR
+# ECS Task Execution Role (ECR Pull Permission)
 # -------------------------------------------
 resource "aws_iam_role" "ecs_task_execution_role" {
   name = "ecsTaskExecutionRoleTask7"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Principal = {
-          Service = "ecs-tasks.amazonaws.com"
-        }
-        Action = "sts:AssumeRole"
+    Statement = [{
+      Effect = "Allow"
+      Principal = {
+        Service = "ecs-tasks.amazonaws.com"
       }
-    ]
+      Action = "sts:AssumeRole"
+    }]
   })
 }
 
-resource "aws_iam_role_policy_attachment" "ecs_task_execution_role_policy" {
+resource "aws_iam_role_policy_attachment" "ecs_task_execution_attach" {
   role       = aws_iam_role.ecs_task_execution_role.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
 }
@@ -118,7 +104,7 @@ resource "aws_security_group" "ecs_sg" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  # Allow Strapi Port
+  # Allow Strapi
   ingress {
     from_port   = 1337
     to_port     = 1337
@@ -126,7 +112,7 @@ resource "aws_security_group" "ecs_sg" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  # Allow outbound
+  # Allow all outbound
   egress {
     from_port   = 0
     to_port     = 0
@@ -159,13 +145,14 @@ resource "aws_instance" "ecs_instance" {
   iam_instance_profile        = aws_iam_instance_profile.ecs_instance_profile.name
   associate_public_ip_address = true
 
-  user_data = <<-EOF
-              #!/bin/bash
-              echo ECS_CLUSTER=strapi-task7 >> /etc/ecs/ecs.config
-              EOF
+  user_data = file("${path.module}/userdata.sh")
 
   root_block_device {
     volume_size = 30
+  }
+
+  tags = {
+    Name = "strapi-task7"
   }
 }
 
@@ -184,7 +171,7 @@ resource "aws_ecs_task_definition" "strapi_task" {
   container_definitions = jsonencode([
     {
       name      = "strapi"
-      image     = "${aws_ecr_repository.strapi_repo.repository_url}:${var.image_tag}"
+      image     = "${data.aws_ecr_repository.strapi_repo.repository_url}:${var.image_tag}"
       essential = true
 
       portMappings = [
@@ -211,7 +198,7 @@ resource "aws_ecs_service" "strapi_service" {
 }
 
 # -------------------------------------------
-# Output URL
+# Output Public URL
 # -------------------------------------------
 output "strapi_url" {
   value = "http://${aws_instance.ecs_instance.public_ip}:1337/"
